@@ -16,6 +16,7 @@ def generate_mask(seq_lens):
     mask = mask < seq_lens.unsqueeze(1)
     return mask
 
+
 def get_last_visit(hidden_states, mask):
     """Gets the last visit from the sequence model.
 
@@ -37,14 +38,3 @@ def get_last_visit(hidden_states, mask):
         last_hidden_states = torch.gather(hidden_states, 1, last_visit)
         last_hidden_state = last_hidden_states[:, 0, :]
         return last_hidden_state
-
-if __name__ == '__main__':
-    seq_lengths = torch.tensor([3, 1])
-    mask = generate_mask(seq_lengths)
-    print(mask)
-
-    hidden_states = torch.randn((2, 3, 4))
-    print(hidden_states)
-    mask = torch.tensor([[1, 1, 1], [1, 0, 0]])
-    last_visit = get_last_visit(hidden_states, mask)
-    print(last_visit)

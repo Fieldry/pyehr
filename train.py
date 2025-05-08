@@ -8,7 +8,6 @@ from lightning.pytorch.loggers import CSVLogger
 import torch
 
 from datasets.utils.datamodule import EhrDataModule
-from datasets.utils.utils import get_los_info
 from pipelines import DlPipeline, MlPipeline
 from utils.bootstrap import run_bootstrap
 

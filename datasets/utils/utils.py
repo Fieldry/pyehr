@@ -3,13 +3,6 @@ from typing import Literal
 
 import torch
 from torch.nn.utils.rnn import unpad_sequence
-import pandas as pd
-
-
-def get_los_info(dataset_dir):
-    path = os.path.join(dataset_dir, 'los_info.pkl')
-    los_info = pd.read_pickle(path)
-    return los_info
 
 
 def unpad_y(preds, labels, lens, pred_type: Literal['n-1', 'n'] = 'n-1'):

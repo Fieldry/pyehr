@@ -10,7 +10,7 @@ logs/
 checkpoints/
 wandb/
 lightning_logs/
-ehrdataset
+ehrdatasets
 
 #########################################
 

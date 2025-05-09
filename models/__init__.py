@@ -1,5 +1,7 @@
 from .adacare import AdaCare
 from .agent import Agent
+from .aicare import AICare
+from .anchcare import AnchCare
 from .catboost import CatBoost  # ML model
 from .concare import ConCare
 from .dt import DT  # ML model

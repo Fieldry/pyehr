@@ -75,9 +75,9 @@ class FinalAttentionQKV(nn.Module):
         return v, a, zeta_original, decay_term
 
 
-class Anchcare(nn.Module):
+class AnchCare(nn.Module):
     def __init__(self, input_dim=18, hidden_dim=32, output_dim=1, dropout=0.0, *args, **kwargs):
-        super(Anchcare, self).__init__()
+        super(AnchCare, self).__init__()
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
@@ -115,8 +115,8 @@ class Anchcare(nn.Module):
         posi_input = self.dropout(GRU_embeded_input)  # batch_size * d_input * hidden_dim
         posi_input, attn, zeta_original, decay_term = self.FinalAttentionQKV(posi_input, mask)
         distance = self.attention_similarity(posi_input, batch_size)  # b, p, d
-        output = self.output(distance)
-        return output, attn, posi_input, zeta_original, decay_term
+        print(distance.shape)
+        return distance
         
     def attention_similarity(self, x: torch.Tensor, batch_size: int):
         x1 = x.unsqueeze(1).repeat(1, self.num_prototypes, 1)  # b, p, d

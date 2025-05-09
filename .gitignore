@@ -2,7 +2,7 @@
 debug.ipynb
 debug.py
 *.csv
-*.CSV
+*.parquet
 *.xlsx
 *.pkl
 *.zip

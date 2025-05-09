@@ -5,10 +5,10 @@ import torch
 import torch.nn as nn
 
 import models
-from datasets.loader.unpad import unpad_y
-from losses import get_loss
-from metrics import get_all_metrics, check_metric_is_better
-from models.utils import generate_mask, get_last_visit
+from datasets.utils.utils import unpad_y
+from utils.loss import get_loss
+from utils.metrics import get_all_metrics, check_metric_is_better
+from models.utils import generate_mask
 
 
 class DlPipeline(L.LightningModule):
@@ -35,7 +35,7 @@ class DlPipeline(L.LightningModule):
 
         model_class = getattr(models, self.model_name)
         self.ehr_encoder = model_class(**config)
-        if self.task == "outcome":
+        if self.task in ["outcome", "mortality", "readmission"]:
             self.head = nn.Sequential(nn.Linear(self.hidden_dim, self.output_dim), nn.Dropout(0.0), nn.Sigmoid())
         elif self.task == "los":
             self.head = nn.Sequential(nn.Linear(self.hidden_dim, self.output_dim), nn.Dropout(0.0))
@@ -55,13 +55,13 @@ class DlPipeline(L.LightningModule):
             self.embedding = embedding
             y_hat = self.head(embedding)
             return y_hat, embedding, decov_loss
-        elif self.model_name in ["GRASP", "Agent"]:
+        elif self.model_name in ["GRASP", "Agent", "AICare"]:
             x_demo, x_lab, mask = x[:, 0, :self.demo_dim], x[:, :, self.demo_dim:], generate_mask(lens)
             embedding = self.ehr_encoder(x_lab, x_demo, mask).to(x.device)
             self.embedding = embedding
             y_hat = self.head(embedding)
             return y_hat, embedding
-        elif self.model_name in ["AdaCare", "RETAIN", "TCN", "Transformer", "StageNet"]:
+        elif self.model_name in ["AdaCare", "AnchCare", "RETAIN", "TCN", "Transformer", "StageNet"]:
             mask = generate_mask(lens)
             embedding = self.ehr_encoder(x, mask).to(x.device)
             self.embedding = embedding
@@ -90,47 +90,47 @@ class DlPipeline(L.LightningModule):
             y_hat, y = unpad_y(y_hat, y, lens)
             loss = get_loss(y_hat, y, self.task, self.time_aware)
         return loss, y, y_hat, embedding
-    def training_step(self, batch, batch_idx):
-        x, y, lens, pid = batch
-        loss, y, y_hat, _ = self._get_loss(x, y, lens)
+
+    def training_step(self, batch, _):
+        x, y, lens, _ = batch
+        loss, y, _, _ = self._get_loss(x, y, lens)
         self.log("train_loss", loss)
         return loss
-    def validation_step(self, batch, batch_idx):
-        x, y, lens, pid = batch
+    def validation_step(self, batch, _):
+        x, y, lens, _ = batch
         loss, y, y_hat, _ = self._get_loss(x, y, lens)
         self.log("val_loss", loss)
-        outs = {'y_pred': y_hat, 'y_true': y, 'val_loss': loss}
+        outs = {'preds': y_hat, 'labels': y, 'val_loss': loss}
         self.validation_step_outputs.append(outs)
         return loss
     def on_validation_epoch_end(self):
-        y_pred = torch.cat([x['y_pred'] for x in self.validation_step_outputs]).detach().cpu()
-        y_true = torch.cat([x['y_true'] for x in self.validation_step_outputs]).detach().cpu()
+        preds = torch.cat([x['preds'] for x in self.validation_step_outputs]).detach().cpu()
+        labels = torch.cat([x['labels'] for x in self.validation_step_outputs]).detach().cpu()
         loss = torch.stack([x['val_loss'] for x in self.validation_step_outputs]).mean().detach().cpu()
         self.log("val_loss_epoch", loss)
-        metrics = get_all_metrics(y_pred, y_true, self.task, self.los_info)
-        for k, v in metrics.items(): self.log(k, v)
+        metrics = get_all_metrics(preds, labels, self.task, self.los_info)
+        for k, v in metrics.items():
+            self.log(k, v)
         main_score = metrics[self.main_metric]
         if check_metric_is_better(self.cur_best_performance, self.main_metric, main_score, self.task):
             self.cur_best_performance = metrics
-            for k, v in metrics.items(): self.log("best_"+k, v)
+            for k, v in metrics.items(): self.log(f"best_{k}", v)
         self.validation_step_outputs.clear()
         return main_score
 
-    def test_step(self, batch, batch_idx):
+    def test_step(self, batch, _):
         x, y, lens, pid = batch
-        loss, y, y_hat, embedding = self._get_loss(x, y, lens)
-        outs = {'y_pred': y_hat, 'y_true': y, 'lens': lens, 'pids': pid, 'embeddings': embedding}
+        loss, y, y_hat, _ = self._get_loss(x, y, lens)
+        outs = {'preds': y_hat, 'labels': y, 'pids': pid}
         self.test_step_outputs.append(outs)
         return loss
     def on_test_epoch_end(self):
-        y_pred = torch.cat([x['y_pred'] for x in self.test_step_outputs]).detach().cpu()
-        y_true = torch.cat([x['y_true'] for x in self.test_step_outputs]).detach().cpu()
-        lens = torch.cat([x['lens'] for x in self.test_step_outputs]).detach().cpu()
-        embeddings = torch.cat([torch.nn.functional.pad(x['embeddings'], (0, 0, 0, max([y['embeddings'].shape[1] for y in self.test_step_outputs])-x['embeddings'].shape[1], 0, 0)) for x in self.test_step_outputs])
+        preds = torch.cat([x['preds'] for x in self.test_step_outputs]).detach().cpu()
+        labels = torch.cat([x['labels'] for x in self.test_step_outputs]).detach().cpu()
         pids = []
         pids.extend([x['pids'] for x in self.test_step_outputs])
-        self.test_performance = get_all_metrics(y_pred, y_true, self.task, self.los_info)
-        self.test_outputs = {'preds': y_pred, 'labels': y_true, 'lens': lens, 'pids': pids, 'embeddings': embeddings}
+        self.test_performance = get_all_metrics(preds, labels, self.task, self.los_info)
+        self.test_outputs = {'preds': preds, 'labels': labels, 'pids': pids}
         self.test_step_outputs.clear()
         return self.test_performance
 

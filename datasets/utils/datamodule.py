@@ -22,23 +22,21 @@ class EhrDataset(data.Dataset):
 
 
 class EhrDataModule(L.LightningDataModule):
-    def __init__(self, data_path, batch_size=32):
+    def __init__(self, data_path, task, batch_size=32):
         super().__init__()
-        self.data_path = data_path
         self.batch_size = batch_size
-
-        self.train_dataset = EhrDataset(self.data_path, mode="train")
-        self.val_dataset = EhrDataset(self.data_path, mode='val')
-        self.test_dataset = EhrDataset(self.data_path, mode='test')
+        self.train_dataset = EhrDataset(data_path, task, mode="train")
+        self.val_dataset = EhrDataset(data_path, task, mode='val')
+        self.test_dataset = EhrDataset(data_path, task, mode='test')
 
     def train_dataloader(self):
         return data.DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True , collate_fn=self.pad_collate, num_workers=8)
 
     def val_dataloader(self):
-        return data.DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False , collate_fn=self.pad_collate, num_workers=8)
+        return data.DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False , collate_fn=self.pad_collate, num_workers=0)
 
     def test_dataloader(self):
-        return data.DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False , collate_fn=self.pad_collate, num_workers=8)
+        return data.DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False , collate_fn=self.pad_collate, num_workers=0)
 
     def pad_collate(self, batch):
         xx, yy, pid = zip(*batch)

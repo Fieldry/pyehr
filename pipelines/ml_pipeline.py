@@ -5,8 +5,8 @@ import pandas as pd
 import lightning as L
 
 import models
-from datasets.loader.unpad import unpad_batch
-from metrics import check_metric_is_better, get_all_metrics
+from datasets.utils.utils import unpad_batch
+from utils.metrics import check_metric_is_better, get_all_metrics
 
 
 class MlPipeline(L.LightningModule):

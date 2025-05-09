@@ -23,7 +23,7 @@ def run_dl_experiment(config):
     config["los_info"] = los_info
 
     # logger
-    logger = CSVLogger(save_dir="logs", name=f'{config["dataset"]}/{config["task"]}/dl_models', version=f"{config['model']}")
+    logger = CSVLogger(save_dir="logs", name=f'{config["dataset"]}/{config["task"]}', version=f"{config['model']}")
 
     # main metric
     main_metric = "auroc" if config["task"] in ["mortality", "readmission"] else "mae"
@@ -41,10 +41,7 @@ def run_dl_experiment(config):
     pipeline = DlPipeline(config)
     if torch.cuda.is_available():
         accelerator = "gpu"
-        devices = [1]
-    elif torch.backends.mps.is_available():
-        accelerator = "mps"
-        devices = [1]
+        devices = [0]
     else:
         accelerator = "cpu"
         devices = 1
@@ -73,7 +70,7 @@ def run_ml_experiment(config):
     config["los_info"] = los_info
 
     # logger
-    logger = CSVLogger(save_dir="logs", name=f'{config["dataset"]}/{config["task"]}/dl_models', version=f"{config['model']}")
+    logger = CSVLogger(save_dir="logs", name=f'{config["dataset"]}/{config["task"]}', version=f"{config['model']}")
 
     # main metric
     main_metric = "auroc" if config["task"] in ["mortality", "readmission"] else "mae"
@@ -106,7 +103,7 @@ def parse_args():
     # Model and training hyperparameters
     parser.add_argument('--hidden_dim', '-hd', type=int, default=128, help='Hidden dimension')
     parser.add_argument('--learning_rate', '-lr', type=float, default=1e-3, help='Learning rate')
-    parser.add_argument('--batch_size', '-bs', type=int, default=256, help='Batch size')
+    parser.add_argument('--batch_size', '-bs', type=int, default=32, help='Batch size')
     parser.add_argument('--epochs', '-e', type=int, default=50, help='Number of epochs')
     parser.add_argument('--patience', '-p', type=int, default=5, help='Patience for early stopping')
     parser.add_argument('--output_dim', '-od', type=int, default=1, help='Output dimension')
@@ -165,15 +162,16 @@ if __name__ == "__main__":
                 print(f"{key}: {value}")
 
             # Run the experiment
-            try:
-                run_experiment = run_ml_experiment if model in ["CatBoost",     "DT", "RF", "XGBoost"] else run_dl_experiment
-                config, perf, outs = run_experiment(config)
-            except Exception:
-                print(f"Error occurred while running the experiment for model {model} with shot {shot}.")
-                continue
+            # try:
+            run_experiment = run_ml_experiment if model in ["CatBoost",     "DT", "RF", "XGBoost"] else run_dl_experiment
+            config, perf, outs = run_experiment(config)
+            # except Exception as e:
+                # print(f"Error occurred while running the experiment for model {model} with shot {shot}.")
+                # print(e)
+                # continue
 
             # Save the performance and outputs
-            save_dir = os.path.join(args.output_root, f"{args.dataset}/{args.task}/dl_models/{model}")
+            save_dir = os.path.join(args.output_root, f"{args.dataset}/{args.task}/{model}")
             os.makedirs(save_dir, exist_ok=True)
 
             # Run bootstrap
@@ -200,6 +198,9 @@ if __name__ == "__main__":
             perf_all_df = pd.concat([perf_all_df, perf_df], ignore_index=True)
 
     # Save all performance
-    perf_all_df.to_csv(os.path.join(args.output_root, f"{args.dataset}/{args.task}/dl_models/all_performance.csv"), index=False)
-    print(f"All performances saved to {os.path.join(args.output_root, f'{args.dataset}/{args.task}/dl_models/all_performance.csv')}")
+    try:
+        perf_all_df.to_csv(os.path.join(args.output_root, f"{args.dataset}/{args.task}/all_performance.csv"), index=False)
+        print(f"All performances saved to {os.path.join(args.output_root, f'{args.dataset}/{args.task}/all_performance.csv')}")
+    except Exception as e:
+        print(e)
     print("All experiments completed.")

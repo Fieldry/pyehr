@@ -34,10 +34,10 @@ class FinalAttentionQKV(nn.Module):
         
         self.dropout = nn.Dropout(dropout)
         self.tanh = nn.Tanh()
-        self.softmax = nn.Softmax()
+        self.softmax = nn.Softmax(dim=-1)
         self.sigmoid = nn.Sigmoid()
     
-    def forward(self, input, mask=None):
+    def forward(self, input):
         batch_size, time_step, _ = input.size()
         input_q = self.W_q(torch.mean(input, dim=1)) # b h
         input_k = self.W_k(input)# b t h
@@ -53,7 +53,7 @@ class FinalAttentionQKV(nn.Module):
         elif self.attention_type == 'mul':
             q = torch.reshape(input_q, (batch_size, self.attention_hidden_dim, 1)) # B * h * 1
             dot_product = torch.matmul(input_k, q).squeeze() # b t
-            time_miss = torch.log(1 + (1 - self.sigmoid(dot_product)) * mask.squeeze())
+            time_miss = torch.log(1 + (1 - self.sigmoid(dot_product)))
             zeta_original = dot_product
             # TOFIX:
             decay_term = self.rate * time_miss 
@@ -89,8 +89,8 @@ class AnchCare(nn.Module):
         self.Q = nn.Linear(self.hidden_dim, self.hidden_dim)
         self.K = nn.Linear(self.hidden_dim, self.hidden_dim)
         self.out = nn.Linear(self.num_prototypes, 1)
-        self.output = nn.Linear(self.num_prototypes, output_dim)
-        self.FinalAttentionQKV = FinalAttentionQKV(self.hidden_dim, self.hidden_dim, attention_type='mul', dropout = dropout)
+        self.output = nn.Linear(self.num_prototypes, hidden_dim)
+        self.FinalAttentionQKV = FinalAttentionQKV(self.hidden_dim, self.hidden_dim, attention_type='mul', dropout=dropout)
 
         self.GRUs = nn.ModuleList([
             nn.GRU(1, self.hidden_dim, batch_first=True) for _ in range(self.input_dim)
@@ -103,20 +103,21 @@ class AnchCare(nn.Module):
         self.sigmoid = nn.Sigmoid()
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, input: torch.Tensor, mask: torch.Tensor, lens: torch.Tensor):
+    def forward(self, input: torch.Tensor, mask: torch.Tensor):
         batch_size, _, feature_dim = input.size()
+        lens = mask.sum(dim=1)
 
-        GRU_embeded_input = self.GRUs[0](pack_padded_sequence(input[:, :, 0].unsqueeze(-1), lens.cpu(), batch_first=True))[1].squeeze().unsqueeze(1) # b 1 h
+        GRU_embeded_input = self.GRUs[0](pack_padded_sequence(input[:, :, 0].unsqueeze(-1), lens.cpu(), batch_first=True, enforce_sorted=False))[1].squeeze().unsqueeze(1) # b 1 h
         for i in range(feature_dim - 1):
             embeded_input = \
-            self.GRUs[i + 1](pack_padded_sequence(input[:, :, i + 1].unsqueeze(-1), lens.cpu(), batch_first=True))[1].squeeze().unsqueeze(1) # b 1 h
+            self.GRUs[i + 1](pack_padded_sequence(input[:, :, i + 1].unsqueeze(-1), lens.cpu(), batch_first=True, enforce_sorted=False))[1].squeeze().unsqueeze(1) # b 1 h
             GRU_embeded_input = torch.cat((GRU_embeded_input, embeded_input), 1)
 
         posi_input = self.dropout(GRU_embeded_input)  # batch_size * d_input * hidden_dim
-        posi_input, attn, zeta_original, decay_term = self.FinalAttentionQKV(posi_input, mask)
+        posi_input, attn, zeta_original, decay_term = self.FinalAttentionQKV(posi_input)
         distance = self.attention_similarity(posi_input, batch_size)  # b, p, d
-        print(distance.shape)
-        return distance
+        output = self.output(distance)
+        return output
         
     def attention_similarity(self, x: torch.Tensor, batch_size: int):
         x1 = x.unsqueeze(1).repeat(1, self.num_prototypes, 1)  # b, p, d

@@ -2,18 +2,14 @@
 
 # Parameter options
 MODEL_OPTIONS=(
-    "CatBoost"
-    "DT"
-    "RF"
-    "XGBoost"
     "GRU"
     "LSTM"
     "Transformer"
     "RNN"
     "AdaCare"
     "AICare"
+    "AnchCare"
     "ConCare"
-    "GRASP"
 )
 DATASET_TASK_OPTIONS=(
     "tjh:mortality"
@@ -40,7 +36,7 @@ for DATASET_TASK in "${DATASET_TASK_OPTIONS[@]}"; do
     CURRENT_RUN=$((CURRENT_RUN + 1))
 
     # Construct command
-    CMD="python -m src.structured_ehr.train_dl -d ${DATASET} -t ${TASK} -m ${MODEL_OPTIONS[@]} -s ${SHOT_OPTIONS[@]}"
+    CMD="python -m train -d ${DATASET} -t ${TASK} -m ${MODEL_OPTIONS[@]} -s ${SHOT_OPTIONS[@]}"
 
     # Print the counter and command
     echo "[$CURRENT_RUN/$TOTAL_RUNS] Running configuration..."
